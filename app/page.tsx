@@ -9,7 +9,11 @@ import AboutSection from "@/components/About";
 import ServicesSection from "@/components/Services";
 import GlobalSection from "@/components/Global";
 import ContactSection from "@/components/Contact";
-import GlobalSequenceCanvas from "@/components/GlobalSequenceCanvas";
+import dynamic from "next/dynamic";
+
+const GlobalSequenceCanvas = dynamic(() => import("@/components/GlobalSequenceCanvas"), { 
+  ssr: false, 
+});
 
 export default function Home() {
   const containerRef = useRef<HTMLDivElement>(null);
