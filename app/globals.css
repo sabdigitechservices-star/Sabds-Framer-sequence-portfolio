@@ -3,7 +3,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-accent: #00FFD1;
+  --color-accent: #2ddded;
   --font-sans: var(--font-outfit);
 }
 
