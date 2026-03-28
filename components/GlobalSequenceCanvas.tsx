@@ -33,14 +33,25 @@ export default function GlobalSequenceCanvas({ scrollYProgress }: { scrollYProgr
   const nextFrame = useTransform(smoothProgress, [0, 1], [1, totalFrames]);
 
   useEffect(() => {
-    // Initial preload for immediate viewing
-    preloadWindow(1);
+    // Load the very first frame immediately to prevent blank screen initially
+    const { folder, local } = getFrameDetails(1);
+    const img = new Image();
+    const paddedLocal = local.toString().padStart(3, "0");
+    img.src = `/${folder}/ezgif-frame-${paddedLocal}.png`;
+    
+    img.onload = () => {
+      images.current[0] = img;
+      renderFrame(1);
+      
+      // Then begin lazy-loading the remaining window after a short delay
+      setTimeout(() => preloadWindow(1), 50);
+    };
   }, []);
 
   const preloadWindow = (currentIndex: number) => {
-    // Determine a window of frames to load: e.g., 30 frames behind and 60 ahead
-    const start = Math.max(1, currentIndex - 30);
-    const end = Math.min(totalFrames, currentIndex + 60);
+    // Tighter active window: less concurrent requests initially (prevents network choke)
+    const start = Math.max(1, currentIndex - 10);
+    const end = Math.min(totalFrames, currentIndex + 30);
 
     // Unload frames outside a larger safety buffer to conserve memory
     const keepStart = Math.max(1, currentIndex - 150);
@@ -72,8 +83,11 @@ export default function GlobalSequenceCanvas({ scrollYProgress }: { scrollYProgr
     // Lazy load logic: sort queue by closest distance to our current view priority
     framesToLoad.sort((a, b) => Math.abs(a - Math.floor(currentIndex)) - Math.abs(b - Math.floor(currentIndex)));
 
+    // Limit to load only up to 15 images per run so the browser doesn't choke on huge queues
+    const batchToLoad = framesToLoad.slice(0, 15);
+
     // Load sequentially based on priority
-    framesToLoad.forEach(i => {
+    batchToLoad.forEach(i => {
       const { folder, local } = getFrameDetails(i);
       const img = new Image();
       const paddedLocal = local.toString().padStart(3, "0");
@@ -96,9 +110,29 @@ export default function GlobalSequenceCanvas({ scrollYProgress }: { scrollYProgr
     
     const imgIndex = Math.floor(index) - 1;
     const safeIndex = Math.max(0, Math.min(imgIndex, totalFrames - 1));
-    const img = images.current[safeIndex];
     
-    if (img && img.complete) {
+    // Find closest loaded image to prevent "stuck frame" effect when scrolling fast
+    let bestImg: HTMLImageElement | null = null;
+    
+    for (let offset = 0; offset <= 40; offset++) {
+      const lowerIndex = safeIndex - offset;
+      const lowerImg = lowerIndex >= 0 ? images.current[lowerIndex] : null;
+      if (lowerImg && lowerImg.complete) {
+        bestImg = lowerImg;
+        break;
+      }
+      
+      const upperIndex = safeIndex + offset;
+      const upperImg = upperIndex < totalFrames ? images.current[upperIndex] : null;
+      if (upperImg && upperImg.complete) {
+        bestImg = upperImg;
+        break;
+      }
+    }
+    
+    const img = bestImg;
+    
+    if (img) {
       // Ensure canvas matches screen dimensions
       if (canvasRef.current.width !== window.innerWidth || canvasRef.current.height !== window.innerHeight) {
         canvasRef.current.width = window.innerWidth;
